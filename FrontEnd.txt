@@ -1,0 +1,80 @@
+<!-- ContactSearchLwc.html -->
+<template>
+    <!-- lightning-input component to provide a search input field -->
+    <lightning-input label="Search Contact" value={searchKey} onchange={handleSearchInput}></lightning-input>
+
+    <!-- If there is data returned from the query, display the results -->
+    <template if:true={contacts.data}>
+        <template for:each={contacts.data} for:item="contact">
+            <p key={contact.Id}>{contact.Name}</p>
+        </template>
+    </template>
+
+    <!-- If there is an error, display the error message -->
+    <template if:true={contacts.error}>
+        <p>{contacts.error}</p>
+    </template>
+</template>
+
+<!-- ContactSearchLwc.js -->
+import { LightningElement, track } from 'lwc';
+import { searchRecords } from 'lightning/uiRecordApi';
+import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import CONTACT_OBJECT from '@salesforce/schema/Contact';
+import NAME_FIELD from '@salesforce/schema/Contact.Name';
+
+export default class ContactSearchLwc extends LightningElement {
+    // track the value of the search input field
+    @track searchKey = '';
+
+    // track the query results and error message
+    @track contacts = { data: [], error: '' };
+
+    // handle the change event of the search input field
+    handleSearchInput(event) {
+        this.searchKey = event.target.value;
+        this.searchContacts();
+    }
+
+    // perform the search query
+    searchContacts() {
+        // if the searchKey is empty, reset the contacts data and error message
+        if (!this.searchKey) {
+            this.contacts = { data: [], error: '' };
+            return;
+        }
+
+        // list of fields to retrieve from the Contact object
+        const fields = [NAME_FIELD];
+
+        // the input data for the search query
+        const recordInput = { apiName: CONTACT_OBJECT.objectApiName, fields };
+
+        // the search query, searching for contacts with a name containing the searchKey
+        const searchContact = 'SELECT ' + fields.join(',') + ' FROM Contact WHERE Name LIKE \'%' + this.searchKey + '%\'';
+
+        // disable the input field while performing the search query
+        this.template.querySelector('lightning-input').disabled = true;
+
+        // perform the search query and process the results
+        return searchRecords({ query: searchContact })
+            .then(result => {
+                // re-enable the input field and update the contacts data with the query results
+                this.template.querySelector('lightning-input').disabled = false;
+                this.contacts = { data: result.records, error: '' };
+            })
+            .catch(error => {
+                // re-enable the input field and update the contacts data with the error message
+                this.template.querySelector('lightning-input').
+		this.contacts = { data: [], error: error.body.message };
+                this.dispatchEvent(
+                    new ShowToastEvent({
+                        title: 'Error',
+                        message: error.body.message,
+                        variant: 'error',
+                    }),
+                );
+            });
+    }
+}
+</script>
